@@ -29,7 +29,7 @@ $('#sqlUpload').on('change', function(event) {
         
         // Render data component
         populateDashboardMetrics(globalData);
-        calculateAndRenderPnL(globalData);
+        calculateAndRenderPnL(globalData); // Memanggil kalkulasi Laba Rugi otomatis
         
         $('#exportAllBtn').prop('disabled', false);
         $('#storeIndicator').text(`Store Data Loaded`).removeClass('bg-secondary').addClass('bg-success');
@@ -38,9 +38,9 @@ $('#sqlUpload').on('change', function(event) {
     reader.readAsText(file, 'UTF-8');
 });
 
-// PostgreSQL COPY input parser logic
+// PostgreSQL COPY input parser logic (Diadopsi dari analisis Data Kasir.html)
 function parseSQLDump(text) {
-    const database = { c_trans: [], c_tsale: [], m_cust: [], m_loader: [] };
+    const database = { c_trans: [], c_tsale: [], m_cust: [], m_loader: [], cek_eod: [] };
     const lines = text.split(/\r?\n/);
     let currentTable = null, columns = [], inCopy = false, buffer = [];
 
@@ -79,7 +79,7 @@ function processRows(rows, cols, tableName) {
         let obj = {};
         cols.forEach((col, idx) => { obj[col] = values[idx]; });
         
-        // Formatter Tipe Data Data Numeric
+        // Formatter Tipe Data & Sinkronisasi Variabel dari analisis Data Kasir.html
         if (tableName === 'c_trans') {
             obj.price = parseFloat(obj.price) || 0;
             obj.qty = parseFloat(obj.qty) || 0;
@@ -88,7 +88,7 @@ function processRows(rows, cols, tableName) {
             obj.cash = parseFloat(obj.cash) || 0;
             obj.card = parseFloat(obj.card) || 0;
         } else if (tableName === 'm_loader') {
-            obj.price1 = parseFloat(obj.price1) || 0; // Harga Beli / HPP
+            obj.price1 = parseFloat(obj.price1) || 0; // Harga Beli / Modal HPP
             obj.m_price = parseFloat(obj.m_price) || 0; // Harga Jual M-Price
         }
         return obj;
@@ -105,7 +105,7 @@ function populateDashboardMetrics(data) {
     $('#statMember').text(data.m_cust.length);
     $('#statProd').text(data.m_loader.length);
 
-    // Grouping Tabel Summary Harian
+    // Grouping Tabel Summary Harian (Logika pembayaran dari analisis Data Kasir.html)
     const dailyMap = new Map();
     let cashSum = 0, qrisSum = 0, debitSum = 0;
 
@@ -158,50 +158,58 @@ function populateDashboardMetrics(data) {
     });
 }
 
-// LABA RUGI (P&L) FINANCIAL LOGIC
+// LABA RUGI (P&L) FINANCIAL LOGIC - GABUNGAN LOGIKA MASTER PRODUK
 function calculateAndRenderPnL(data) {
-    // 1. Ambil Total Pendapatan Kotor
+    // 1. Mengambil Nilai Penjualan Bersih (Net Sales) langsung dari c_tsale (Total Jual)
     let grossSales = data.c_tsale.reduce((acc, curr) => acc + (curr.jum || 0), 0);
-    let discount = 0; // Kosongkan / bypass jika skema dump tidak menyediakan kolom potongan khusus
+    let discount = 0; // Potongan/Diskon penjualan awal
     let netSales = grossSales - discount;
 
-    // 2. Penghitungan HPP Kompleks (COGS) bersumber dari relasi c_trans & m_loader
-    // Buat Map Master Produk untuk akses O(1)
+    // 2. Pemetaan Kode Master Produk (m_loader) untuk Menghitung HPP Secara Akurat
     const productCostMap = new Map();
+    const productTaxMap = new Map();
+
     data.m_loader.forEach(p => {
-        // Simpan harga beli (price1)
-        productCostMap.set(p.plu, parseFloat(p.price1) || 0);
+        productCostMap.set(p.plu, parseFloat(p.price1) || 0); // price1 = Harga Beli / Modal
+        productTaxMap.set(p.plu, p.ppn);                      // ppn status (1 = Kena Pajak)
     });
 
-    let totalCogs = 0;
-    let taxAllocation = 0;
+    let totalCogs = 0;        // Total Harga Pokok Penjualan
+    let taxAllocation = 0;    // Alokasi Pajak (PPN)
 
+    // 3. Iterasi Detail Item Terjual (c_trans) untuk Kalkulasi HPP dan PPN Riil
     data.c_trans.forEach(item => {
         let qty = parseFloat(item.qty) || 0;
+        let priceJual = parseFloat(item.price) || 0;
+        
+        // Cari harga modal (price1) berdasarkan PLU produk di master data
         let hppPerItem = productCostMap.get(item.plu) || 0;
         
-        // Jika di master m_loader produk berharga 0 atau tidak ditemukan, 
-        // asumsikan HPP bernilai default konservatif 70% dari harga jual transaksi
+        // Antisipasi Fallback: Jika di master m_loader harga modal kosong atau bernilai 0,
+        // Gunakan estimasi aman (Rule Dagang: HPP bernilai 70% dari harga jual item)
         if (hppPerItem === 0) {
-            hppPerItem = (parseFloat(item.price) || 0) * 0.7; 
+            hppPerItem = priceJual * 0.7; 
         }
 
+        // Akumulasi COGS/HPP: Modal per item * jumlah quantity terjual
         totalCogs += (hppPerItem * qty);
 
-        // Alokasi PPN (bila field kategori/ppn bernilai 1)
-        if (item.ppn == "1") {
-            taxAllocation += ((parseFloat(item.price) || 0) * qty * 0.11); // PPN 11%
+        // Perhitungan PPN berbasis field 'ppn' dari master data (1 = Ya, Kena Pajak 11%)
+        let statusPpn = productTaxMap.get(item.plu);
+        if (statusPpn == "1" || item.ppn == "1") {
+            taxAllocation += (priceJual * qty * 0.11); 
         }
     });
 
+    // 4. Kalkulasi Akhir Margin Keuangan
     let grossProfit = netSales - totalCogs;
     let netProfit = grossProfit - taxAllocation;
 
-    // Ambil rentang periode tanggal transaksi
+    // Mengambil rentang tanggal laporan dari c_tsale secara otomatis
     let dates = data.c_tsale.map(s => s.tgl_f).filter(Boolean).sort();
     let periodStr = dates.length ? `${dates[0]} s/d ${dates[dates.length - 1]}` : '-';
 
-    // Update Output Komponen P&L Form
+    // 5. Inject / Tampilkan Hasil ke Struktur Tabel P&L ERP yang Sudah Ada
     $('#pnlPeriod').text(`Periode: ${periodStr}`);
     $('#pnlGrossSales').text(formatIDR(grossSales));
     $('#pnlDiscount').text(`-${formatIDR(discount)}`);
@@ -220,10 +228,12 @@ function exportAllToExcel() {
     if (!globalData) return;
     const wb = XLSX.utils.book_new();
     
-    // Append Raw Sheets Data
+    // Append Raw Sheets Data (Sesuai dengan format penulisan Excel ekspor)
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.c_tsale), "Header_Penjualan");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.c_trans), "Detail_Transaksi");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.m_loader), "Master_Produk");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.m_cust), "Member");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.cek_eod), "EOD_Log");
     
     // Trigger Save File
     XLSX.writeFile(wb, `ERP_AmandaMart_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
