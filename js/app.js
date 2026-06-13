@@ -159,57 +159,69 @@ function populateDashboardMetrics(data) {
 }
 
 // LABA RUGI (P&L) FINANCIAL LOGIC - GABUNGAN LOGIKA MASTER PRODUK
+// LABA RUGI (P&L) FINANCIAL LOGIC - INTEGRATED VERSION
 function calculateAndRenderPnL(data) {
-    // 1. Mengambil Nilai Penjualan Bersih (Net Sales) langsung dari c_tsale (Total Jual)
+    // 1. Ambil Total Pendapatan Kotor (Gross Sales) dari c_tsale
     let grossSales = data.c_tsale.reduce((acc, curr) => acc + (curr.jum || 0), 0);
-    let discount = 0; // Potongan/Diskon penjualan awal
+    let discount = 0; // Set 0 atau sesuaikan jika ada kolom diskon di database Anda
     let netSales = grossSales - discount;
 
-    // 2. Pemetaan Kode Master Produk (m_loader) untuk Menghitung HPP Secara Akurat
+    // =========================================================================
+    // INTEGRASI LOGIKA BARU: Hitung COGS (HPP) berdasarkan m_loader & c_trans
+    // =========================================================================
+    
+    // Buat Map Master Produk dari m_loader untuk pencarian cepat O(1) berdasarkan PLU
     const productCostMap = new Map();
-    const productTaxMap = new Map();
-
     data.m_loader.forEach(p => {
-        productCostMap.set(p.plu, parseFloat(p.price1) || 0); // price1 = Harga Beli / Modal
-        productTaxMap.set(p.plu, p.ppn);                      // ppn status (1 = Kena Pajak)
+        // price1 = Harga Beli (HPP), m_price = Harga Jual Master
+        productCostMap.set(p.plu, {
+            hargaBeli: parseFloat(p.price1) || 0,
+            hargaJualMaster: parseFloat(p.m_price) || 0
+        });
     });
 
-    let totalCogs = 0;        // Total Harga Pokok Penjualan
-    let taxAllocation = 0;    // Alokasi Pajak (PPN)
+    let totalCogs = 0;
+    let taxAllocation = 0;
 
-    // 3. Iterasi Detail Item Terjual (c_trans) untuk Kalkulasi HPP dan PPN Riil
+    // Iterasi setiap item yang benar-benar terjual di c_trans
     data.c_trans.forEach(item => {
         let qty = parseFloat(item.qty) || 0;
-        let priceJual = parseFloat(item.price) || 0;
+        let productInfo = productCostMap.get(item.plu);
         
-        // Cari harga modal (price1) berdasarkan PLU produk di master data
-        let hppPerItem = productCostMap.get(item.plu) || 0;
+        let hppPerItem = 0;
+
+        if (productInfo) {
+            hppPerItem = productInfo.hargaBeli;
+        }
         
-        // Antisipasi Fallback: Jika di master m_loader harga modal kosong atau bernilai 0,
-        // Gunakan estimasi aman (Rule Dagang: HPP bernilai 70% dari harga jual item)
+        // Failsafe / Antisipasi: Jika produk tidak ditemukan di master atau harga beli bernilai 0,
+        // gunakan estimasi rasio profit margin standar (misal: HPP adalah 70% dari harga jual di transaksi)
         if (hppPerItem === 0) {
-            hppPerItem = priceJual * 0.7; 
+            let hargaJualAktual = parseFloat(item.price) || 0;
+            hppPerItem = hargaJualAktual * 0.7; 
         }
 
-        // Akumulasi COGS/HPP: Modal per item * jumlah quantity terjual
+        // Akumulasi Total COGS (HPP = Harga Beli x Qty Terjual)
         totalCogs += (hppPerItem * qty);
 
-        // Perhitungan PPN berbasis field 'ppn' dari master data (1 = Ya, Kena Pajak 11%)
-        let statusPpn = productTaxMap.get(item.plu);
-        if (statusPpn == "1" || item.ppn == "1") {
-            taxAllocation += (priceJual * qty * 0.11); 
+        // Hitung Alokasi Pajak (PPN) jika produk tersebut bertanda PPN (ppn == 1)
+        if (item.ppn == "1") {
+            let hargaJualAktual = parseFloat(item.price) || 0;
+            taxAllocation += (hargaJualAktual * qty * 0.11); // PPN 11%
         }
     });
 
-    // 4. Kalkulasi Akhir Margin Keuangan
+    // 3. Kalkulasi Profit Margins
     let grossProfit = netSales - totalCogs;
     let netProfit = grossProfit - taxAllocation;
 
-    // Mengambil rentang tanggal laporan dari c_tsale secara otomatis
+    // 4. Ambil Rentang Tanggal untuk Periode Laporan
     let dates = data.c_tsale.map(s => s.tgl_f).filter(Boolean).sort();
     let periodStr = dates.length ? `${dates[0]} s/d ${dates[dates.length - 1]}` : '-';
 
-    // 5. Inject / Tampilkan Hasil ke Struktur Tabel P&L ERP yang Sudah Ada
+    // =========================================================================
+    // RENDER KE UI (Tetap mempertahankan ID elemen HTML dari template sebelumnya)
+    // =========================================================================
     $('#pnlPeriod').text(`Periode: ${periodStr}`);
     $('#pnlGrossSales').text(formatIDR(grossSales));
     $('#pnlDiscount').text(`-${formatIDR(discount)}`);
@@ -222,7 +234,6 @@ function calculateAndRenderPnL(data) {
     $('#pnlTax').text(formatIDR(taxAllocation));
     $('#pnlNetProfit').text(formatIDR(netProfit));
 }
-
 // EXPORT TO EXCEL COMPONENT (SheetJS)
 function exportAllToExcel() {
     if (!globalData) return;
