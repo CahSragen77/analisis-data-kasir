@@ -90,3 +90,163 @@ body {
 .d-none {
     display: none !important;
 }
+
+
+/* Print Styles */
+@media print {
+    body {
+        background: white;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .btn-modern, .btn-excel, .btn-primary, .dataTables_filter, 
+    .dataTables_length, .dataTables_paginate, .nav-custom, 
+    .button-group, .info-toast, #exportAllBtn, #exportProfitBtn,
+    .btn-print, .btn-print-margin {
+        display: none !important;
+    }
+    
+    .stat-card, .chart-card, .data-table-card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+        break-inside: avoid;
+    }
+    
+    .table {
+        font-size: 10pt;
+    }
+    
+    .card-header {
+        background: #f8f9fa !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .gradient-text {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .margin-highlight {
+        background: #f0fdf4 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    @page {
+        size: A4 landscape;
+        margin: 1.5cm;
+    }
+    
+    h1, h2, h3, h4 {
+        page-break-after: avoid;
+    }
+    
+    table {
+        page-break-inside: avoid;
+    }
+}
+
+/* Margin Report Card */
+.margin-report-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.3s;
+}
+
+.margin-report-card:hover {
+    transform: translateY(-5px);
+}
+
+.margin-report-card h6 {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 10px;
+}
+
+.margin-report-card h3 {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.margin-report-card .margin-badge {
+    display: inline-block;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 10px;
+}
+
+.margin-badge.high {
+    background: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.margin-badge.medium {
+    background: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+
+.margin-badge.low {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+/* Print Button */
+.btn-print {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    color: white;
+    border: none;
+}
+
+.btn-print:hover {
+    background: linear-gradient(135deg, #5a6268 0%, #343a40 100%);
+    transform: translateY(-2px);
+    color: white;
+}
+
+.btn-print-margin {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+}
+
+.btn-print-margin:hover {
+    transform: translateY(-2px);
+    color: white;
+}
+
+/* Margin Indicator */
+.margin-indicator {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.margin-indicator-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+.margin-indicator-fill.high {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.margin-indicator-fill.medium {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.margin-indicator-fill.low {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+}
