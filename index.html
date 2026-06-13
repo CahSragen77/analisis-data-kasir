@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AmandaMart ERP - Financial & Transaction Control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="erp-wrapper">
+        <nav id="sidebar" class="bg-dark text-white">
+            <div class="sidebar-header p-3 border-bottom border-secondary">
+                <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-box-seam-fill me-2"></i>AmandaMart ERP</h5>
+                <small class="text-muted">Finance & Operation v1.0</small>
+            </div>
+            <ul class="nav flex-column p-2 gap-1">
+                <li class="nav-item">
+                    <a href="#" class="nav-link active" onclick="switchPage('dashboard')">
+                        <i class="bi bi-speedometer2 me-2"></i> Dashboard Utama
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" onclick="switchPage('pnl')">
+                        <i class="bi bi-graph-up-arrow me-2"></i> Laporan Laba Rugi (P&L)
+                    </a>
+                </li>
+            </ul>
+            <div class="sidebar-footer p-3 mt-auto border-top border-secondary text-center">
+                <small class="text-muted"><i class="bi bi-database"></i> PostgreSQL Parser</small>
+            </div>
+        </nav>
+
+        <main class="content-area">
+            <header class="navbar navbar-expand navbar-light bg-white shadow-sm px-4 py-2 mb-4 justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <label for="sqlUpload" class="btn btn-outline-primary btn-sm"><i class="bi bi-upload"></i> Upload SQL Dump</label>
+                    <input type="file" id="sqlUpload" accept=".sql,.txt" style="display:none">
+                    <button id="exportAllBtn" class="btn btn-success btn-sm" disabled><i class="bi bi-file-spreadsheet"></i> Export Excel</button>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-secondary p-2" id="storeIndicator">Store: Waiting Data...</span>
+                </div>
+            </header>
+
+            <section id="page-dashboard" class="erp-page">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold text-secondary">Operational Dashboard</h4>
+                </div>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3 col-6">
+                        <div class="card kpi-card border-start-primary shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small">Total Transaksi</div>
+                                <h3 class="fw-bold" id="statTrans">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="card kpi-card border-start-success shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small">Pendapatan Kotor (Gross)</div>
+                                <h3 class="fw-bold text-success" id="statSale">Rp 0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="card kpi-card border-start-info shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small">Total Member</div>
+                                <h3 class="fw-bold" id="statMember">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="card kpi-card border-start-warning shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small">Master Produk</div>
+                                <h3 class="fw-bold" id="statProd">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-7">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-white fw-bold"><i class="bi bi-calendar-range me-2"></i>Ringkasan Transaksi Harian</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped align-middle mb-0" id="summaryTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Tanggal</th>
+                                                <th>Trx</th>
+                                                <th>Total Penjualan</th>
+                                                <th>Cash</th>
+                                                <th>QRIS</th>
+                                                <th>Debit</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="summaryBody">
+                                            <tr><td colspan="6" class="text-center text-muted py-4">Silakan unggah database SQL terlebih dahulu</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-white fw-bold"><i class="bi bi-pie-chart me-2"></i>Proporsi Pembayaran</div>
+                            <div class="card-body d-flex align-items-center justify-content-center">
+                                <canvas id="paymentChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="page-pnl" class="erp-page d-none">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold text-secondary">Laporan Laba Rugi (Profit & Loss Statement)</h4>
+                    <span class="text-muted small">Metode Akumulasi Data Penjualan & Master Produk</span>
+                </div>
+
+                <div class="card shadow-sm m-auto" style="max-width: 850px;">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <h3 class="fw-bold mb-0">AMANDAMART</h3>
+                            <h5 class="text-muted uppercase">Laporan Laba Rugi</h5>
+                            <div id="pnlPeriod" class="small text-secondary">Periode: -</div>
+                        </div>
+                        <hr class="border-2">
+
+                        <table class="table table-borderless table-pnl">
+                            <tbody>
+                                <tr class="table-group-header">
+                                    <td>PENDAPATAN</td>
+                                    <td></td>
+                                </tr>
+                                <tr class="table-row-indent">
+                                    <td>Penjualan Kotor (Gross Sales)</td>
+                                    <td class="text-end" id="pnlGrossSales">Rp 0</td>
+                                </tr>
+                                <tr class="table-row-indent border-bottom">
+                                    <td>Potongan / Diskon Penjualan</td>
+                                    <td class="text-end text-danger" id="pnlDiscount">-Rp 0</td>
+                                </tr>
+                                <tr class="table-row-total">
+                                    <td>TOTAL PENDAPATAN BERSIH</td>
+                                    <td class="text-end border-top border-dark" id="pnlNetSales">Rp 0</td>
+                                </tr>
+
+                                <tr class="table-group-header mt-3">
+                                    <td>HARGA POKOK PENJUALAN (HPP)</td>
+                                    <td></td>
+                                </tr>
+                                <tr class="table-row-indent border-bottom">
+                                    <td>Total Beban Pokok Barang Terjual (COGS)</td>
+                                    <td class="text-end text-danger" id="pnlCogs">-Rp 0</td>
+                                </tr>
+                                <tr class="table-row-total">
+                                    <td>TOTAL HARGA POKOK PENJUALAN</td>
+                                    <td class="text-end border-top border-dark text-danger" id="pnlTotalCogs">-Rp 0</td>
+                                </tr>
+
+                                <tr class="table-row-grand-total bg-light">
+                                    <td class="fw-bold py-2">LABA KOTOR (GROSS PROFIT)</td>
+                                    <td class="text-end fw-bold py-2 border-double" id="pnlGrossProfit">Rp 0</td>
+                                </tr>
+
+                                <tr class="table-group-header">
+                                    <td>PAJAK KELUARAN (PPN)</td>
+                                    <td></td>
+                                </tr>
+                                <tr class="table-row-indent border-bottom">
+                                    <td>Alokasi Pajak (Dari Produk Kena PPN)</td>
+                                    <td class="text-end text-muted" id="pnlTax">Rp 0</td>
+                                </tr>
+                                
+                                <tr class="table-row-grand-total bg-dark text-white">
+                                    <td class="fw-bold py-2 ps-2">ESTIMASI LABA BERSIH (NET PROFIT)</td>
+                                    <td class="text-end fw-bold py-2 pe-2" id="pnlNetProfit">Rp 0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
